@@ -1,0 +1,8 @@
+LAMMPS (22 Jul 2025 - Update 6)
+  using 1 OpenMP thread(s) per MPI task
+# Deliberately invalid input to capture LAMMPS error-message format
+units       lj
+atom_style  atomic
+this_is_not_a_lammps_command foo bar
+ERROR: Unknown command: this_is_not_a_lammps_command foo bar (src/input.cpp:315)
+Last input line: this_is_not_a_lammps_command foo bar

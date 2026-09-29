@@ -1,0 +1,29 @@
+# One LAMMPS run of one input script, optionally on one structure: a small,
+# complete workflow package to copy and edit. See run.py for what the step does.
+#
+# It declares no outputs and has no collector: collecting stores the job's run
+# as a run-only provenance record.
+
+[workflow]
+name = "lammps.run"
+description = "one LAMMPS run of an input script"
+requires = ["httk-workflow>=2.1.1", "httk-workflow-lammps>=0.1.0"]
+
+[workflow.runner]
+entry = "run.py"
+steps = ["run"]
+# The persistent workdir holds log.lammps and whatever the script writes.
+data_mode = "none"
+
+[workflow.inputs.script]
+destination = "in.lammps"
+role = "script"
+description = "The LAMMPS input script."
+required = true
+
+[workflow.inputs.structure]
+destination = "POSCAR"
+role = "initial_structure"
+entry_type = "structures"
+required = false
+description = "Optional; written as structure.data (read_data structure.data), which needs httk-atomistic."

@@ -1,0 +1,125 @@
+LAMMPS (22 Jul 2025 - Update 6)
+  using 1 OpenMP thread(s) per MPI task
+# Tiny LJ liquid, ~100 atoms, 100 steps - smoke test fixture
+units       lj
+atom_style  atomic
+dimension   3
+boundary    p p p
+
+lattice     fcc 0.8442
+Lattice spacing in x,y,z = 1.6795962 1.6795962 1.6795962
+region      box block 0 3 0 3 0 3
+create_box  1 box
+Created orthogonal box = (0 0 0) to (5.0387886 5.0387886 5.0387886)
+  1 by 1 by 1 MPI processor grid
+create_atoms 1 box
+Created 108 atoms
+  using lattice units in orthogonal box = (0 0 0) to (5.0387886 5.0387886 5.0387886)
+  create_atoms CPU = 0.000 seconds
+
+mass        1 1.0
+pair_style  lj/cut 2.5
+pair_coeff  1 1 1.0 1.0 2.5
+
+velocity    all create 1.0 87287 loop geom
+
+neighbor    0.3 bin
+neigh_modify every 20 delay 0 check no
+
+fix         1 all nve
+
+thermo      10
+thermo_style custom step temp pe etotal press
+
+fix p all print 25 "interleaved message from fix print"
+run 50
+Generated 0 of 0 mixed pair_coeff terms from geometric mixing rule
+Neighbor list info ...
+  update: every = 20 steps, delay = 0 steps, check = no
+  max neighbors/atom: 2000, page size: 100000
+  master list distance cutoff = 2.8
+  ghost atom cutoff = 2.8
+  binsize = 1.4, bins = 4 4 4
+  1 neighbor lists, perpetual/occasional/extra = 1 0 0
+  (1) pair lj/cut, perpetual
+      attributes: half, newton on
+      pair build: half/bin/atomonly/newton
+      stencil: half/bin/3d
+      bin: standard
+interleaved message from fix print
+Per MPI rank memory allocation (min/avg/max) = 2.598 | 2.598 | 2.598 Mbytes
+   Step          Temp          PotEng         TotEng         Press     
+         0   1             -6.7733681     -5.2872569     -5.3989339    
+        10   0.80926597    -6.4868472     -5.2841881     -3.8215432    
+        20   0.40901154    -5.8971374     -5.2893008     -0.91444702   
+interleaved message from fix print
+        30   0.48318677    -6.0103207     -5.2922515     -1.1844046    
+        40   0.45815995    -5.9739788     -5.2931022     -1.1055708    
+interleaved message from fix print
+        50   0.4701706     -5.9932004     -5.2944747     -1.2316135    
+Loop time of 0.00338829 on 1 procs for 50 steps with 108 atoms
+
+Performance: 6374897.072 tau/day, 14756.706 timesteps/s, 1.594 Matom-step/s
+97.2% CPU use with 1 MPI tasks x 1 OpenMP threads
+
+MPI task timing breakdown:
+Section |  min time  |  avg time  |  max time  |%varavg| %total
+---------------------------------------------------------------
+Pair    | 0.0026242  | 0.0026242  | 0.0026242  |   0.0 | 77.45
+Neigh   | 0.00039144 | 0.00039144 | 0.00039144 |   0.0 | 11.55
+Comm    | 0.00024034 | 0.00024034 | 0.00024034 |   0.0 |  7.09
+Output  | 1.8311e-05 | 1.8311e-05 | 1.8311e-05 |   0.0 |  0.54
+Modify  | 5.9644e-05 | 5.9644e-05 | 5.9644e-05 |   0.0 |  1.76
+Other   |            | 5.439e-05  |            |       |  1.61
+
+Nlocal:            108 ave         108 max         108 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:            990 ave         990 max         990 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:           4078 ave        4078 max        4078 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 4078
+Ave neighs/atom = 37.759259
+Neighbor list builds = 2
+Dangerous builds not checked
+thermo_modify norm yes
+thermo_style custom step temp etotal
+WARNING: New thermo_style command, previous thermo_modify settings will be lost (src/output.cpp:912)
+run 30
+Generated 0 of 0 mixed pair_coeff terms from geometric mixing rule
+interleaved message from fix print
+Per MPI rank memory allocation (min/avg/max) = 2.598 | 2.598 | 2.598 Mbytes
+   Step          Temp          TotEng    
+        50   0.4701706     -5.2944747    
+        60   0.46891813    -5.2949913    
+        70   0.52906042    -5.2954302    
+interleaved message from fix print
+        80   0.54497405    -5.2940407    
+Loop time of 0.00208744 on 1 procs for 30 steps with 108 atoms
+
+Performance: 6208558.709 tau/day, 14371.664 timesteps/s, 1.552 Matom-step/s
+100.0% CPU use with 1 MPI tasks x 1 OpenMP threads
+
+MPI task timing breakdown:
+Section |  min time  |  avg time  |  max time  |%varavg| %total
+---------------------------------------------------------------
+Pair    | 0.0016832  | 0.0016832  | 0.0016832  |   0.0 | 80.64
+Neigh   | 0.00018779 | 0.00018779 | 0.00018779 |   0.0 |  9.00
+Comm    | 0.00014187 | 0.00014187 | 0.00014187 |   0.0 |  6.80
+Output  | 7.841e-06  | 7.841e-06  | 7.841e-06  |   0.0 |  0.38
+Modify  | 3.5151e-05 | 3.5151e-05 | 3.5151e-05 |   0.0 |  1.68
+Other   |            | 3.154e-05  |            |       |  1.51
+
+Nlocal:            108 ave         108 max         108 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:            986 ave         986 max         986 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:           4050 ave        4050 max        4050 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 4050
+Ave neighs/atom = 37.5
+Neighbor list builds = 1
+Dangerous builds not checked
+Total wall time: 0:00:00

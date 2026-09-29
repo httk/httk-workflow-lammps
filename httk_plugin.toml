@@ -1,0 +1,4 @@
+[plugin]
+name = "httk-workflow-lammps"
+description = "Example LAMMPS workflow packages (run an input script)"
+workflows = ["workflows/lammps-run"]

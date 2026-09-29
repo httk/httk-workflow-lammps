@@ -1,0 +1,4 @@
+# Deliberately invalid input to capture LAMMPS error-message format
+units       lj
+atom_style  atomic
+this_is_not_a_lammps_command foo bar
