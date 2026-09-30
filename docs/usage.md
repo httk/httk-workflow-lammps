@@ -106,7 +106,7 @@ repository, or use it directly with `--workflow-dir`:
 httk workspace settings set --key lammps.command --value 'mpirun -np 4 lmp' WORKSPACE
 httk job new --workflow lammps.run --input script=in.lammps --input structure=POSCAR
 httk workflow run
-httk workflow collect --into results.sqlite
+httk collect --into results.sqlite
 ```
 
 The setting `lammps.command` (default `lmp`) says how to run LAMMPS. The data
