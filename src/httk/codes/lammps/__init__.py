@@ -31,13 +31,15 @@ register_citation(
 
 from .diagnostics import diagnose_lammps
 from .inputs import write_lammps_data
-from .outputs import LammpsResult, ThermoTable, parse_lammps_log
+from .outputs import KCAL_MOL_TO_EV, LammpsResult, ThermoTable, average_total_energy_ev, parse_lammps_log
 from .reports import LammpsRunReport, run_lammps
 
 __all__ = [
+    "KCAL_MOL_TO_EV",
     "LammpsResult",
     "LammpsRunReport",
     "ThermoTable",
+    "average_total_energy_ev",
     "diagnose_lammps",
     "parse_lammps_log",
     "run_lammps",

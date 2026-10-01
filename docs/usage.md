@@ -119,4 +119,46 @@ file carries no masses unless the structure does, so the script sets them with
 only the job's run: a run-only provenance record naming the workflow and its
 inputs, with the files left in the job's workdir.
 
-<!-- ponytail: no energy output; httk's schemas define only the DFT total_energy. Add an MD energy property to httk-schemas first, then a collector and an output role here. -->
+### Recognized calculations
+
+A finished LAMMPS run that was not started by a workspace is collected by the
+registered `lammps.calculation` collector:
+`httk.workflow.collect_tree(root)` finds every directory holding exactly one
+log (any name, compressed or not) whose first five lines carry the
+`LAMMPS (` banner, together with exactly one input script, and collects the
+output `average_total_energy`. The identity is a digest of the input script and the files it reads,
+so moving the directory keeps it.
+
+- **Identity.** The digest covers the script and the plain relative files in
+  the directory named by its `read_data`, `read_restart` and `include` lines
+  (first argument), and by any argument of its `pair_coeff` (potential files)
+  and `molecule` lines (names containing `$` variables or `/` are ignored). Runs that
+  differ only by command-line `-var` values are indistinguishable by design.
+- **Screen copies.** LAMMPS prints the banner on screen too: when a captured
+  `slurm-N.out` sits beside the log, the file that echoes the input (else
+  `log.*`/`*.log`) is taken as the log.
+
+- **Averaging rule.** LAMMPS prints no average, so the value is the arithmetic
+  mean, computed by *httk₂*, of the printed `TotEng` column over the rows of
+  the **last `run`** thermo table; `minimize` tables and a trailing `run 0`
+  are skipped. A staged `run 500` then `run 500` therefore averages only the
+  last segment. The units and `thermo_modify norm` state used are those in
+  force at that table (a later `units` or `clear` is followed); the claim
+  decision reads them from the first 2000 echoed lines only, and the collect
+  step degrades if the full log disagrees. The
+  `thermo_style` must print `etotal` (`thermo_style multi` and `yaml` are not
+  parsed). A log without a completed run (`Total wall time:`), without a `run`
+  table or without `TotEng` is claimed and degraded.
+- **Units.** The `units` style is read from the echoed input at the top of the
+  log. `metal` (eV) and `real` (kcal/mol, converted with
+  {py:data}`~httk.codes.lammps.KCAL_MOL_TO_EV`, the thermochemical kcal times
+  the CODATA kJ/mol to eV factor) are accepted; every other style, or a log
+  with `echo none`, is reported as unclaimed, as is an input with
+  `thermo_modify norm yes` (per-atom energies, not the whole system).
+- **File names.** The collector is selected by a `*.lammps` file in the
+  directory, so the workflow's `in.lammps`/`log.lammps` pair is found; the log
+  is then located by its banner, whatever its name. The input script is the
+  single `in.*` or `*.in` file beside the log. A directory whose only
+  `.lammps` file is absent (for example `md.in` with `run.log`) is not
+  recognized, and several logs or several scripts are reported as unclaimed.
+  {py:func}`~httk.codes.lammps.collect.find_outputs` is the banner-based finder.

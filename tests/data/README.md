@@ -12,6 +12,9 @@ the `-log` output, the `.out` files the captured standard output.
 | `min_maxiter.in`, `min_maxiter.log` | `minimize` of a randomly displaced lattice capped at 5 iterations: `Stopping criterion = max iterations` |
 | `err.in`, `err.log`, `err.out` | an unknown command: `ERROR: Unknown command: this_is_not_a_lammps_command foo bar (src/input.cpp:315)`, exit status 1 |
 | `noinput.out` | standard output of `lmp -in nothere`: `ERROR on proc 0: Cannot open input script nothere: ...`, an empty log, exit status 1 |
+| `metal.log`, `real.log` | synthetic: `lj.log` with `units metal`/`units real` and `TotEng` rewritten to `-1 ... -11` (mean `-6`) |
+| `metal_noetot.log` | synthetic: the `metal` run with `thermo_style custom step temp pe press` (no `TotEng`) |
+| `metal_min_run.log` | synthetic: a `minimize` (`TotEng` `-100`) followed by the `metal` `run` |
 
 The inputs are written for these tests; the logs and outputs are program output
 of those runs.

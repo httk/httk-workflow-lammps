@@ -125,7 +125,7 @@ nitpick_ignore = [
 # against the defining module, so those cross-references cannot land and are
 # ignored here. The private type aliases the same signatures mention are ignored
 # for the same reason.
-_INTERNAL_MODULES = ("inputs", "outputs", "diagnostics", "reports")
+_INTERNAL_MODULES = ("inputs", "outputs", "diagnostics", "reports", "collect")
 nitpick_ignore_regex = [
     (r"py:.*", r"httk\.codes\.lammps\.(" + "|".join(_INTERNAL_MODULES) + r")(\..+)?"),
     (r"py:.*", r"DiagnosticSeverity"),
@@ -141,7 +141,7 @@ suppress_warnings = ["myst.xref_missing", "autoapi.python_import_resolution"]
 # still scanned so the facade can document the names it re-exports. Within a
 # documented module, only the names it lists in ``__all__`` appear, which drops
 # the toolkit types the package merely imports.
-PUBLIC_MODULES = frozenset({"httk.codes.lammps"})
+PUBLIC_MODULES = frozenset({"httk.codes.lammps", "httk.codes.lammps.collect"})
 
 _exports_cache: dict[str, frozenset[str] | None] = {}
 

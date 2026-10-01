@@ -1,0 +1,21 @@
+# Recognizes a finished free-standing LAMMPS run: one log (banner-detected) with its input script beside it.
+# The marker is "*.lammps" because log.lammps (the default log name, and the workflow's) has no
+# other form a marker can match; logs named *.log are not recognized.
+
+[workflow]
+name = "lammps.calculation"
+description = "a finished LAMMPS run: one log with its input script beside it"
+
+[workflow.recognize]
+file = "recognize.py"
+priority = 10
+requires = ["*.lammps"]
+
+[workflow.outputs.average_total_energy]
+entry_type = "records"
+role = "average_total_energy"
+ref = "https://schemas.httk.org/defs/v0.1/properties/core/average_total_energy"
+description = "The mean of the printed TotEng over the last run's thermo table (minimize excluded), in eV."
+
+[workflow.collect]
+file = "collect.py"
