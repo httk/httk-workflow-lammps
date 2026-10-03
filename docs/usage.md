@@ -149,8 +149,14 @@ so moving the directory keeps it.
   `thermo_style` must print `etotal` (`thermo_style multi` and `yaml` are not
   parsed). A log without a completed run (`Total wall time:`), without a `run`
   table or without `TotEng` is claimed and degraded.
-- **Units.** The `units` style is read from the echoed input at the top of the
-  log. `metal` (eV) and `real` (kcal/mol, converted with
+- **Units and normalization.** The `units` style is read from the echoed input
+  at the top of the log. LAMMPS defaults thermo normalization to yes for `lj`
+  and no for its other known styles; each `thermo_style` resets it to that
+  default, and an explicit `thermo_modify norm` overrides it until the next
+  reset. `clear`, missing setup, an unrecognized style, or an invalid echoed
+  value leaves the state unknown. The `average_total_energy_ev` helper refuses
+  unknown or per-atom state because the printed `TotEng` may not be a system
+  total. `metal` (eV) and `real` (kcal/mol, converted with
   {py:data}`~httk.codes.lammps.KCAL_MOL_TO_EV`, the thermochemical kcal times
   the CODATA kJ/mol to eV factor) are accepted; every other style, or a log
   with `echo none`, is reported as unclaimed, as is an input with

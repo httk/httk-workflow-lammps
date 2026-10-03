@@ -49,6 +49,8 @@ def recognize(directory: Path) -> Claim | Unclaimed | None:
     units, normalized = read_setup(logs[0])
     if not units_convertible(units):
         return Unclaimed(f"LAMMPS units {units or 'unknown'} cannot be converted to eV")
+    if normalized is None:
+        return Unclaimed("LAMMPS thermo normalization state is unknown")
     if normalized:
         return Unclaimed(NORMALIZED_REASON)
     stripped = (split_compression_suffix(path.name)[0] for path in directory.iterdir() if path.is_file())

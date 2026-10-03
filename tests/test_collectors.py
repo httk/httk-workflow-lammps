@@ -10,7 +10,7 @@ from httk.workflow.calculations import content_digest
 
 from conftest import DATA
 from httk.codes.lammps import KCAL_MOL_TO_EV
-from httk.codes.lammps.collect import find_outputs, read_average_total_energy
+from httk.codes.lammps.collect import find_outputs, read_average_total_energy, read_setup
 
 SCRIPT = "units metal\nrun 100\n"
 
@@ -114,6 +114,18 @@ def test_norm_yes_is_unclaimed_and_refused_by_the_reader(tmp_path: Path) -> None
     (outcome,) = claims(tmp_path)
     assert outcome.kind == "unclaimed" and outcome.reason and "per-atom" in outcome.reason
     with pytest.raises(ValueError, match="per-atom"):
+        read_average_total_energy(log)
+
+
+def test_unknown_norm_state_is_unclaimed_and_refused_by_the_reader(tmp_path: Path) -> None:
+    directory = _run(tmp_path / "md")
+    log = directory / "log.lammps"
+    text = log.read_text(encoding="utf-8").replace("run         100", "thermo_modify norm maybe\nrun 100")
+    log.write_text(text, encoding="utf-8")
+    assert read_setup(log) == ("metal", None)
+    (outcome,) = claims(tmp_path)
+    assert outcome.kind == "unclaimed" and outcome.reason == "LAMMPS thermo normalization state is unknown"
+    with pytest.raises(ValueError, match="normalization state is unknown"):
         read_average_total_energy(log)
 
 

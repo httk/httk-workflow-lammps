@@ -26,6 +26,7 @@ def test_two_runs_give_two_tables_past_interleaved_lines() -> None:
     assert [row[0] for row in first.rows] == [0, 10, 20, 30, 40, 50]
     assert second.columns == ("Step", "Temp", "TotEng")
     assert second.last == {"Step": 80.0, "Temp": 0.54497405, "TotEng": -5.2940407}
+    assert [table.normalized for table in result.thermo] == [True, True]
     assert result.warnings == (
         "WARNING: New thermo_style command, previous thermo_modify settings will be lost (src/output.cpp:912)",
     )
@@ -53,6 +54,9 @@ def test_a_log_cut_short_keeps_the_rows_it_printed(tmp_path) -> None:
 
 def test_the_units_style_and_the_table_kinds_are_parsed() -> None:
     assert parse_lammps_log(DATA / "metal.log").units == "metal"
+    assert parse_lammps_log(DATA / "metal.log").normalized is False
+    assert parse_lammps_log(DATA / "real.log").normalized is False
+    assert parse_lammps_log(DATA / "lj.log").normalized is True
     assert [table.kind for table in parse_lammps_log(DATA / "metal_min_run.log").thermo] == ["minimize", "run"]
     assert [table.kind for table in parse_lammps_log(DATA / "min.log").thermo] == ["minimize"]
     assert [table.kind for table in parse_lammps_log(DATA / "two_runs.log").thermo] == ["run", "run"]
@@ -77,8 +81,16 @@ def test_real_units_convert_kcal_per_mol() -> None:
 
 
 def test_unsupported_units_are_refused() -> None:
+    text = (
+        (DATA / "lj.log")
+        .read_text(encoding="utf-8")
+        .replace(
+            "thermo_style custom step temp pe etotal press",
+            "thermo_style custom step temp pe etotal press\nthermo_modify norm no",
+        )
+    )
     with pytest.raises(ValueError, match="'lj'"):
-        average_total_energy_ev(parse_lammps_log(DATA / "lj.log"))
+        average_total_energy_ev(_parse(text))
 
 
 def test_a_compressed_log_is_parsed(tmp_path) -> None:
@@ -106,6 +118,45 @@ def test_thermo_modify_norm_is_detected_and_refused() -> None:
     )
     with pytest.raises(ValueError, match="per-atom"):
         average_total_energy_ev(metal)
+
+
+def test_thermo_style_resets_norm_to_the_units_default() -> None:
+    text = (DATA / "metal.log").read_text(encoding="utf-8")
+    text = text.replace(
+        "thermo_style custom step temp pe etotal press",
+        "thermo_modify norm yes\nthermo_style custom step temp pe etotal press",
+    )
+    result = _parse(text)
+    assert result.thermo[0].normalized is False
+
+
+def test_unknown_norm_state_is_preserved_and_refused() -> None:
+    text = (DATA / "metal.log").read_text(encoding="utf-8")
+    without_units = text.replace("units       metal\n", "")
+    result = _parse(without_units)
+    assert result.thermo[0].normalized is None
+    with pytest.raises(ValueError, match="normalization state is unknown"):
+        average_total_energy_ev(result)
+    after_clear = _parse(text.replace("units       metal", "units metal\nclear", 1))
+    assert after_clear.thermo[0].normalized is None
+
+
+def test_each_thermo_table_keeps_its_own_norm_state() -> None:
+    text = (DATA / "two_runs.log").read_text(encoding="utf-8").replace("units       lj", "units metal", 1)
+    text = text.replace(
+        "thermo_style custom step temp etotal\n", "thermo_style custom step temp etotal\nthermo_modify norm yes\n"
+    )
+    result = _parse(text)
+    assert [table.normalized for table in result.thermo] == [False, True]
+    assert result.normalized is True
+
+
+def test_invalid_norm_value_does_not_become_false() -> None:
+    text = (
+        (DATA / "metal.log").read_text(encoding="utf-8").replace("run         100", "thermo_modify norm maybe\nrun 100")
+    )
+    result = _parse(text)
+    assert result.thermo[0].normalized is None
 
 
 def _metal(*, before: str = "", replace_units: str = "units       metal") -> str:

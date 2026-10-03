@@ -18,7 +18,9 @@ __all__ = ["KCAL_MOL_TO_EV", "LammpsResult", "ThermoTable", "average_total_energ
 #: CODATA kJ/mol to eV factor, the same basis as ``KJ_MOL_TO_EV`` of httk-workflow-gromacs.
 KCAL_MOL_TO_EV: float = 4.184 * 0.010364269656262175
 NORMALIZED_REASON = "thermo_modify norm yes reports per-atom energies; the average total energy is for the whole system"
+UNKNOWN_NORM_REASON = "LAMMPS thermo normalization state is unknown; the average total energy cannot be established"
 _ENERGY_FACTORS = {"metal": 1.0, "real": KCAL_MOL_TO_EV}
+_UNIT_STYLES = frozenset({"lj", "real", "metal", "si", "cgs", "electron", "micro", "nano"})
 _LOOP_STEPS = re.compile(r"^Loop time of .* for (\d+) steps")
 
 _STOP = "Stopping criterion ="
@@ -37,7 +39,8 @@ class ThermoTable:
     :param steps: The step count of the ``Loop time of`` line, or ``None`` for a table cut short.
     :param units: The ``units`` style in force when the table was printed (the last echoed ``units``
         command since any ``clear``), or ``None`` when none was echoed.
-    :param normalized: Whether ``thermo_modify norm yes`` was in force (energies per atom).
+    :param normalized: Whether energy columns were normalized per atom, or ``None`` when the echoed
+        setup does not establish the state.
     """
 
     columns: tuple[str, ...]
@@ -45,7 +48,7 @@ class ThermoTable:
     kind: str = "run"
     steps: int | None = None
     units: str | None = None
-    normalized: bool = False
+    normalized: bool | None = None
 
     @property
     def last(self) -> dict[str, float]:
@@ -63,7 +66,8 @@ class LammpsResult:
     :param warnings: The ``WARNING:`` lines, in order and without repeats.
     :param minimization_stop: The stopping criterion of the last minimization, or ``None``.
     :param units: The last ``units`` style echoed in the log (``None`` after a ``clear``, or when none is echoed).
-    :param normalized: Whether ``thermo_modify norm yes`` is in force at the end of the log.
+    :param normalized: Whether energy columns are normalized per atom, or ``None`` when the echoed
+        setup does not establish the state.
     """
 
     thermo: tuple[ThermoTable, ...]
@@ -72,7 +76,7 @@ class LammpsResult:
     warnings: tuple[str, ...]
     minimization_stop: str | None
     units: str | None = None
-    normalized: bool = False
+    normalized: bool | None = None
 
     @property
     def minimization_converged(self) -> bool | None:
@@ -108,18 +112,31 @@ def _floats(fields: list[str]) -> tuple[float, ...] | None:
         return None
 
 
-def _echo_state(units: str | None, normalized: bool, fields: list[str]) -> tuple[str | None, bool]:
+def _echo_state(units: str | None, normalized: bool | None, fields: list[str]) -> tuple[str | None, bool | None]:
     """Update the (units, norm) state in force by one echoed input line, given as split fields."""
 
     match fields:
         case ["units", style, *_]:
-            return style, normalized
+            return style, _default_norm(style)
         case ["clear"]:
-            return None, False
+            return None, None
+        case ["thermo_style", *_]:
+            return units, _default_norm(units)
         case ["thermo_modify", *args] if "norm" in args[:-1]:
             last = max(i for i, arg in enumerate(args[:-1]) if arg == "norm")
-            return units, args[last + 1].lower() == "yes"
+            value = args[last + 1].lower()
+            return units, value == "yes" if value in {"yes", "no"} else None
+        case ["thermo_modify", *args] if args and args[-1] == "norm":
+            return units, None
     return units, normalized
+
+
+def _default_norm(units: str | None) -> bool | None:
+    """Return the known LAMMPS thermo normalization default for a unit style."""
+
+    if units == "lj":
+        return True
+    return False if units in _UNIT_STYLES else None
 
 
 def _parse(text: str, screen: str = "") -> LammpsResult:
@@ -135,7 +152,7 @@ def _parse(text: str, screen: str = "") -> LammpsResult:
     stop: str | None = None
     command = "run"  # the kind of the last echoed run/minimize command
     units: str | None = None
-    normalized = False
+    normalized: bool | None = None
     # ponytail: `thermo_style multi`/`yaml` blocks are not tables here; parse them when a workflow needs them.
     for line in text.splitlines():
         fields = line.split()
@@ -150,7 +167,7 @@ def _parse(text: str, screen: str = "") -> LammpsResult:
                 )
                 columns = None
             # anything else (a WARNING, a fix's message) interleaves with the rows and is skipped
-        elif fields[:1] in (["units"], ["clear"], ["thermo_modify"]):
+        elif fields[:1] in (["units"], ["clear"], ["thermo_modify"], ["thermo_style"]):
             units, normalized = _echo_state(units, normalized, fields)
         elif fields[:1] == ["Step"]:
             columns, rows = tuple(fields), []
@@ -182,15 +199,17 @@ def average_total_energy_ev(result: LammpsResult) -> float | None:
 
     :param result: The parsed log.
     :return: The mean in eV, or ``None`` when there is no ``run`` table or it has no ``TotEng`` rows.
-    :raises ValueError: If the echoed ``units`` style is not ``metal`` or ``real``, or is not echoed,
-        or the table's input state has ``thermo_modify norm yes``. The units and norm state are those in force
-        for the chosen table.
+    :raises ValueError: If the echoed ``units`` style is not ``metal`` or ``real``, or the table's
+        normalization state is unknown or per-atom. The units and norm state are those in force for
+        the chosen table.
     """
 
     runs = [table for table in result.thermo if table.kind == "run" and table.steps != 0]
     if not runs or "TotEng" not in runs[-1].columns or not runs[-1].rows:
         return None
     table = runs[-1]
+    if table.normalized is None:
+        raise ValueError(UNKNOWN_NORM_REASON)
     if table.normalized:
         raise ValueError(NORMALIZED_REASON)
     if table.units not in _ENERGY_FACTORS:

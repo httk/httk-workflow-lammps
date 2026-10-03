@@ -62,18 +62,19 @@ def _stem(path: Path) -> str:
     return split_compression_suffix(path.name)[0].lower()
 
 
-def read_setup(path: Path) -> tuple[str | None, bool]:
+def read_setup(path: Path) -> tuple[str | None, bool | None]:
     """Read the ``units`` style and the ``thermo_modify norm`` state echoed near the top of a LAMMPS log.
 
-    The state is the last one in force within the first 2000 lines (a ``clear`` resets it); a later
-    change is caught when the full parse of the collect step picks the state of the table itself.
+    The state is the last one in force within the first 2000 lines (``units`` and ``thermo_style``
+    reset it to that style's default; ``clear`` makes it unknown). A later change is caught when the
+    full parse of the collect step picks the state of the table itself.
 
     :param path: The LAMMPS log, optionally compressed.
-    :return: The style (``None`` when the log echoes none, as with ``echo none``) and whether
-        ``thermo_modify norm yes`` is echoed.
+    :return: The style and whether energy columns are normalized per atom, or ``None`` when the
+        echoed setup does not establish the normalization state.
     """
 
-    units, normalized = None, False
+    units, normalized = None, None
     for line in _head(path, _ECHO_LINES):
         units, normalized = _echo_state(units, normalized, line.split())
     return units, normalized
