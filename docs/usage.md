@@ -15,8 +15,9 @@ The distribution depends on *httk-core* and *httk-workflow*. Installing it
 registers the `lammps` code through the `httk.registry.codes.lammps`
 registration package, which makes the `lammps-*` bridge commands and the Bash
 API available to every job the manager starts; nothing needs to be configured.
-Writing data files from structures needs *httk-atomistic*, the `atomistic`
-extra; parsing, diagnostics and running do not.
+Writing data files from structures and joining dumps with thermo tables need
+*httk-atomistic*, the `atomistic` extra; log parsing, diagnostics and running
+do not.
 
 ## Python
 

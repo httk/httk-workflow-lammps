@@ -15,6 +15,7 @@ the example workflow package `lammps.run`.
 :class: tip
 
 - {doc}`usage` — the Python and Bash API, the example workflow, and the diagnostics
+- {doc}`analysis` — joining a LAMMPS dump with its log into canonical-unit samples
 - {doc}`reference/index` — the generated API reference
 ```
 
@@ -29,5 +30,6 @@ python -m pip install "httk-workflow-lammps[atomistic]"
 :caption: Documentation
 
 usage
+analysis
 reference/index
 ```
