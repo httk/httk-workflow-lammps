@@ -4,7 +4,7 @@
 text dump with a log parsed by {py:func}`~httk.codes.lammps.parse_lammps_log`.
 It uses the exact, streaming `LammpsTrajectory` backend in *httk-atomistic*
 (the `atomistic` extra), so the join raises `ImportError` without it. The
-yielded samples carry exact structures and canonical-unit thermodynamic values,
+yielded samples carry exact structures and thermodynamic values in the units fixed by their OPTIMADE property definitions,
 which *httk-analyse* consumes without knowing that LAMMPS produced them.
 
 ```python
@@ -43,8 +43,15 @@ for selecting the same physical run; step equality alone cannot prove this.
 Supply `dimension=3` explicitly for these bulk quantities. Two-dimensional
 LAMMPS pressure and volume use area conventions and are rejected by this join.
 
-Canonical outputs use eV, angstrom, ps and K. Positive pressure is compression;
-converted stress is tensile-positive. For stress components, explicitly set
+Each `sample.thermo` entry is a pair of a property definition name
+(`total_energy`, `potential_energy`, `kinetic_energy`, `enthalpy`, `temperature`,
+`volume`, `pressure`, `stress_tensor`) and a bare value in the unit of that
+definition: eV for whole-cell energies, K, angstrom^3, and GPa. No unit strings
+are carried; the conversion happens once, here. Pairs follow the order of
+`columns`. Positive `pressure` is compression. The six stress columns
+`Pxx, Pyy, Pzz, Pyz, Pxz, Pxy` must be selected together and yield a single
+`stress_tensor` value, a tensile-positive Voigt tuple `(xx, yy, zz, yz, xz, xy)`
+in GPa, placed at the position of the first of them. A custom conversion cannot produce a stress tensor. For stress, explicitly set
 `stress_basis_matches_dump=True` only after verifying the Cartesian bases:
 general triclinic output can rotate the dump relative to default thermo tensors.
 This join does not infer that rotation.
@@ -54,8 +61,10 @@ For normalized energies, the global `Atoms` thermo column or an explicit
 count cannot establish the normalization. Volume is printed as the full box
 volume even when energies are normalized. LJ units need positive explicit
 length/time/energy scales in `trajectory_options['lj_scales']`. Custom variables
-need an explicit `ThermoConversion(name, unit, scale, per_atom)`; their meaning
-and normalization are never inferred from column names. The `per_atom` flag
+need an explicit `ThermoConversion(definition=<property definition IRI>,
+scale=<factor>, per_atom=<bool>)`; the caller chooses `scale` so that the printed
+value times it is in the definition's unit. Meaning and normalization are never
+inferred from column names. The `per_atom` flag
 means that the printed value must be multiplied by the global atom count.
 
 See the official [dump format](https://docs.lammps.org/dump.html),

@@ -9,34 +9,37 @@ from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
+from httk.core import definition_ids, load_property_definition
+from httk.core.units import default_registry
+
 from .outputs import parse_lammps_log
 
 __all__ = ["LammpsSample", "ThermoConversion", "lammps_samples"]
 
 _EV_J = 1.602176634e-19
 _KB_EV = 8.617333262145e-5
+_STRESS = ("Pxx", "Pyy", "Pzz", "Pyz", "Pxz", "Pxy")  # Voigt order
+# No calorie/mole unit upstream: exact thermochemical kcal/mol (4184 J / N_A) in eV.
 _KCAL_MOL_EV = 4184 / (6.02214076e23 * _EV_J)
 
 
 @dataclass(frozen=True, slots=True)
 class ThermoConversion:
-    """Explicit meaning and conversion of a custom thermo column.
+    """Explicit meaning and conversion of a thermo column.
 
-    :param name: Output property name, chosen by the caller.
-    :param unit: Output unit label.
-    :param scale: Multiply the printed value by this finite scale.
+    :param definition: IRI of the OPTIMADE property definition the value is reported as.
+    :param scale: Multiply the printed value by this finite scale to obtain the definition's unit; choosing it is the caller's responsibility.
     :param per_atom: If true, additionally multiply by the frame's atom count.
     """
 
-    name: str
-    unit: str
+    definition: str
     scale: float
     per_atom: bool = False
 
     def __post_init__(self) -> None:
-        """Require a finite explicit scale and named meaning."""
-        if not self.name or not self.unit or not math.isfinite(self.scale):
-            raise ValueError("custom conversions require name, unit, and finite scale")
+        """Require a definition and a finite explicit scale."""
+        if not self.definition or not math.isfinite(self.scale):
+            raise ValueError("conversions require a definition and a finite scale")
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,13 +48,13 @@ class LammpsSample:
 
     :param structure: Exact ``httk.atomistic.UnitcellStructure`` from the selected dump segment.
     :param step: Integer step shared by the dump and selected table.
-    :param thermo: Tuples of property name, value, and canonical unit.
+    :param thermo: Pairs of property definition name and value in the definition's unit, in caller column order.
     :param observables: Requested trajectory observables in caller order.
     """
 
     structure: Any
     step: int
-    thermo: tuple[tuple[str, float, str], ...]
+    thermo: tuple[tuple[str, Any], ...]
     observables: tuple[Any, ...]
 
 
@@ -87,7 +90,7 @@ def lammps_samples(
     :param dimension: Explicit simulation dimension; this bulk converter supports only 3.
     :param segment: Nonnegative dump segment index.
     :param table_index: Nonnegative thermo table index.
-    :param columns: Selected standard thermo column names in output order.
+    :param columns: Selected thermo column names in output order. The six stress components Pxx, Pyy, Pzz, Pyz, Pxz, Pxy must be selected together and yield one stress tensor value at the first one's position.
     :param observables: Additional canonical trajectory observable names to stream.
     :param join: Exact step intersection or identical-step strict join.
     :param total_atom_count: Global atom count for normalized energies when the log omits Atoms.
@@ -96,7 +99,7 @@ def lammps_samples(
     :param trajectory_options: Additional LammpsTrajectory arguments, such as timestep or lj_scales.
     :yields: Joined immutable samples in dump order.
     :raises ImportError: If *httk-atomistic* is unavailable.
-    :raises ValueError: If metadata, step identity, selection, units, or conversions are invalid.
+    :raises ValueError: If metadata, step identity, selection, units, or conversions are invalid, or stress components are incomplete.
     """
     try:
         from httk.atomistic.integrations.lammps.trajectory import (  # pyright: ignore[reportMissingImports]
@@ -135,12 +138,27 @@ def lammps_samples(
     trajectory = LammpsTrajectory(dump, species=species, units=units, segment=segment, **options)
     factors = _factors(units, options.get("lj_scales"))
     custom = dict(custom_columns or {})
-    if not stress_basis_matches_dump and any(
-        name in {"Pxx", "Pyy", "Pzz", "Pyz", "Pxz", "Pxy"} and name not in custom for name in selected
-    ):
-        raise ValueError("stress conversion requires explicit stress_basis_matches_dump=True")
-    conversions = tuple(custom.get(name) or _standard(name, factors, table.normalized) for name in selected)
-    if len({conversion.name for conversion in conversions}) != len(conversions):
+    if any(c.definition == definition_ids.STRESS_TENSOR for c in custom.values()):
+        raise ValueError("the stress tensor comes only from the six Pxx..Pxy columns, not a custom conversion")
+    stress = [name for name in selected if name in _STRESS and name not in custom]
+    if stress:
+        if missing := [name for name in _STRESS if name not in stress]:
+            raise ValueError(f"stress tensor requires all six components; missing {missing}")
+        if not stress_basis_matches_dump:
+            raise ValueError("stress conversion requires explicit stress_basis_matches_dump=True")
+    # One plan entry per output value: (conversion, column indices); a stress tensor has six.
+    plan: list[tuple[ThermoConversion, tuple[int, ...]]] = []
+    for name in selected:
+        if name in stress:
+            if name == stress[0]:
+                tensor = ThermoConversion(definition_ids.STRESS_TENSOR, -factors[2])
+                plan.append((tensor, tuple(table.columns.index(c) for c in _STRESS)))
+        else:
+            conversion = custom.get(name) or _standard(name, factors, table.normalized)
+            plan.append((conversion, (table.columns.index(name),)))
+    conversions = tuple(conversion for conversion, _ in plan)
+    names = tuple(load_property_definition(conversion.definition).name for conversion in conversions)
+    if len(set(names)) != len(names):
         raise ValueError("converted property names must be distinct")
     indices = tuple(table.columns.index(name) for name in selected)
     step_index = table.columns.index("Step")
@@ -176,47 +194,50 @@ def lammps_samples(
         ):
             raise ValueError("normalized energy requires a global atom count, from Atoms or total_atom_count")
         converted = tuple(
-            (
-                conversion.name,
-                row[index] * conversion.scale * (cast(int, atom_count) if conversion.per_atom else 1),
-                conversion.unit,
-            )
-            for index, conversion in zip(indices, conversions, strict=True)
+            (name, _scaled(conversion, [row[index] for index in group], cast(int, atom_count)))
+            for name, (conversion, group) in zip(names, plan, strict=True)
         )
-        if not all(math.isfinite(value) for _, value, _ in converted):
+        flat = [x for _, value in converted for x in (value if isinstance(value, tuple) else (value,))]
+        if not all(math.isfinite(x) for x in flat):
             raise ValueError("converted thermo values are nonfinite")
         yield LammpsSample(frame, step, converted, values[1:])
     if join == "strict" and next(expected, None) is not None:
         raise ValueError("strict dump/thermo step sequences differ")
 
 
+def _scaled(conversion: ThermoConversion, printed: list[float], atom_count: int) -> float | tuple[float, ...]:
+    scale = conversion.scale * (atom_count if conversion.per_atom else 1)
+    values = [value * scale for value in printed]
+    return tuple(values) if conversion.definition == definition_ids.STRESS_TENSOR else values[0]
+
+
 def _factors(units: str, lj_scales: Any) -> tuple[float, float, float, float]:
+    """Return length, energy, pressure and temperature factors to angstrom, eV, GPa and K."""
+    factor = default_registry().factor
     if units == "metal":
-        return 1.0, 1.0, 1e5 / (_EV_J * 1e30), 1.0
+        return 1.0, 1.0, float(factor("bar", "GPa").factor), 1.0
     if units == "real":
-        return 1.0, _KCAL_MOL_EV, 101325 / (_EV_J * 1e30), 1.0
+        return 1.0, _KCAL_MOL_EV, float(factor("atm", "GPa").factor), 1.0
     length, _, energy = (float(value) for value in lj_scales)
-    return length, energy, energy / length**3, energy / _KB_EV
+    return length, energy, energy / length**3 * float(factor("angstrom^-3*eV", "GPa").factor), energy / _KB_EV
 
 
 def _standard(name: str, factors: tuple[float, float, float, float], normalized: bool | None) -> ThermoConversion:
     length, energy, pressure, temperature = factors
     energies = {
-        "TotEng": "total_energy",
-        "PotEng": "potential_energy",
-        "KinEng": "kinetic_energy",
-        "Enthalpy": "enthalpy",
+        "TotEng": definition_ids.TOTAL_ENERGY,
+        "PotEng": definition_ids.POTENTIAL_ENERGY,
+        "KinEng": definition_ids.KINETIC_ENERGY,
+        "Enthalpy": definition_ids.ENTHALPY,
     }
     if name in energies:
         if normalized is None:
             raise ValueError("energy normalization is unknown")
-        return ThermoConversion(energies[name], "eV", energy, normalized)
+        return ThermoConversion(energies[name], energy, normalized)
     if name == "Temp":
-        return ThermoConversion("temperature", "K", temperature)
+        return ThermoConversion(definition_ids.TEMPERATURE, temperature)
     if name == "Volume":
-        return ThermoConversion("volume", "angstrom^3", length**3)
+        return ThermoConversion(definition_ids.VOLUME, length**3)
     if name == "Press":
-        return ThermoConversion("pressure", "eV/angstrom^3", pressure)
-    if name in {"Pxx", "Pyy", "Pzz", "Pyz", "Pxz", "Pxy"}:
-        return ThermoConversion("stress_" + name[1:].lower(), "eV/angstrom^3", -pressure)
+        return ThermoConversion(definition_ids.PRESSURE, pressure)
     raise ValueError(f"column {name!r} requires an explicit ThermoConversion")
