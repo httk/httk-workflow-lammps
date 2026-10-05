@@ -25,7 +25,7 @@ do not.
 from httk.codes.lammps import run_lammps, write_lammps_data
 
 write_lammps_data("structure.data", structure="POSCAR", masses={"Ar": 39.948})
-report = run_lammps(["mpirun", "-np", "4", "lmp"], timeout=3600)
+report = run_lammps(["lmp"], timeout=3600)
 if report.ok:
     print(report.result.thermo[-1].last["TotEng"])
 else:
@@ -80,14 +80,16 @@ source "$HTTK_WORKFLOW_BASH_API"
 source "$HTTK_WORKFLOW_LAMMPS_BASH_API"
 
 httk_lammps_write_data --options options.json   # the write_lammps_data keywords as JSON
-httk_lammps_run --timeout 3600 -- mpirun -np 4 lmp
+httk_lammps_run --timeout 3600 -- lmp
 energy=$(httk_lammps_thermo --column TotEng)
 ```
+
+The command names only the program: the attempt's launch prefix (the parallel start, the `HTTK_WORKFLOW_LAUNCH` variable the workflow manager sets from the `manager.launch_template` setting, or the built-in Slurm prefix) is prepended to it, and `--no-launch` (`launch=False` in Python) runs the command as given. A command that already starts with a launcher such as `mpirun` or `srun` is refused when a prefix applies.
 
 | Function | Bridge command | Exit status |
 | --- | --- | --- |
 | `httk_lammps_write_data --options FILE [--data structure.data]` | `lammps-write-data` | `0` |
-| `httk_lammps_run [--directory] [--input] [--log] [--output] [--timeout] -- CMD...` | `lammps-run` | `0` completed, `20` crashed, `21` nonconverged (minimization), `22` process failure, `124` timeout (as `vasp-run`); prints the report path |
+| `httk_lammps_run [--directory] [--input] [--log] [--output] [--timeout] [--no-launch] -- CMD...` | `lammps-run` | `0` completed, `20` crashed, `21` nonconverged (minimization), `22` process failure, `124` timeout (as `vasp-run`); prints the report path |
 | `httk_lammps_thermo --column NAME [--table N] [--log log.lammps]` | `lammps-thermo` | `0` and the last value of the column in table `N` (default `-1`, the last), `1` when there is none |
 | `httk_lammps_diagnose [--log log.lammps] [--output lammps.out] [--json]` | `lammps-diagnose` | `0` clean, `20` when it printed diagnostics |
 
@@ -104,7 +106,7 @@ code when the run is not clean. Install it with `httk plugin install` of the
 repository, or use it directly with `--workflow-dir`:
 
 ```console
-httk workspace settings set --key lammps.command --value 'mpirun -np 4 lmp' WORKSPACE
+httk workspace settings set --key lammps.command --value lmp WORKSPACE
 httk job new --workflow lammps.run --input script=in.lammps --input structure=POSCAR
 httk workflow run
 httk collect --into results.sqlite

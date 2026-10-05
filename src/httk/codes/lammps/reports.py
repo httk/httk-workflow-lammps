@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from httk.workflow.codes import Diagnostic, ProcessReport, ProcessSupervisor, write_json_atomic
+from httk.workflow.codes import Diagnostic, ProcessReport, ProcessSupervisor, launch_command, write_json_atomic
 
 from .diagnostics import diagnose_lammps
 from .outputs import LammpsResult, _parse, _read
@@ -72,16 +72,21 @@ def run_lammps(
     log_file: str = "log.lammps",
     output_file: str = "lammps.out",
     timeout: float | None = None,
+    launch: bool | None = None,
     termination_grace: float = 10.0,
     report_path: str | os.PathLike[str] = "lammps-run-report.json",
 ) -> LammpsRunReport:
     """Run LAMMPS under supervision and write a classified report.
 
-    *argv* is the command that starts LAMMPS, including any launcher such as
-    ``mpirun -np 4 lmp``; ``-in INPUT_FILE -log LOG_FILE`` is appended to it.
-    Standard output goes to *output_file* and standard error beside it with the
-    suffix ``.err``. A log left by an earlier run is removed first, so it cannot
-    be mistaken for this run's.
+    *argv* names the program (for example ``["lmp"]``); ``-in INPUT_FILE -log LOG_FILE``
+    is appended to it. Standard output goes to *output_file* and standard error
+    beside it with the suffix ``.err``. A log left by an earlier run is removed
+    first, so it cannot be mistaken for this run's.
+
+    The attempt's launch prefix (the parallel start, ``HTTK_WORKFLOW_LAUNCH``) is
+    prepended by default; ``launch=False`` runs *argv* as given, and a command that
+    already starts with a launcher such as ``srun`` or ``mpirun`` is refused with
+    :class:`ValueError` when a prefix applies.
 
     :param argv: The LAMMPS command argument vector, without the input and log options.
     :param directory: Run LAMMPS in this directory.
@@ -89,6 +94,8 @@ def run_lammps(
     :param log_file: The log file name in *directory*.
     :param output_file: Save standard output under this name in *directory*.
     :param timeout: Stop the process after this many seconds when set.
+    :param launch: Prepend the attempt's launch prefix when true, the default (``None``);
+        ``False`` runs *argv* as given.
     :param termination_grace: Allow this many seconds for graceful termination.
     :param report_path: Write the report at this directory-relative path.
     :return: The classified run report.
@@ -99,7 +106,7 @@ def run_lammps(
     output = root / output_file
     # ponytail: no live monitor or remedy ladder; add them when a real campaign needs them.
     process = ProcessSupervisor().run(
-        [*argv, "-in", input_file, "-log", log_file],
+        [*launch_command(argv, launch=launch is not False), "-in", input_file, "-log", log_file],
         timeout=timeout,
         cwd=root,
         termination_grace=termination_grace,

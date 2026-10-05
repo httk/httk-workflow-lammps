@@ -10,8 +10,8 @@ is not clean.
 
 Settings, resolved job parameter -> ``HTTK_*`` variable -> workspace setting:
 
-* ``lammps.command``: the command that starts LAMMPS (default ``lmp``), e.g.
-  ``mpirun -np 4 lmp``.
+* ``lammps.command``: the command that starts LAMMPS (default ``lmp``), the program
+  only; the attempt's launch prefix supplies the parallel start.
 """
 
 import shlex

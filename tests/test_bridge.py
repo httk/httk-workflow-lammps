@@ -86,3 +86,26 @@ def test_the_bash_api_forwards_to_the_bridge(tmp_path: Path) -> None:
         check=False,
     )
     assert unguarded.returncode == 2 and "source HTTK_WORKFLOW_BASH_API" in unguarded.stderr
+
+
+def test_no_launch_runs_the_command_as_given(tmp_path: Path) -> None:
+    # _bridge strips HTTK_WORKFLOW_*; call the bridge directly with a launch prefix set.
+    environment = {
+        **os.environ,
+        "PYTHONPATH": str(Path(__file__).parents[1] / "src"),
+        "HTTK_WORKFLOW_LAUNCH": "env A=b",
+    }
+    command = [sys.executable, "-m", "httk.workflow._shell_bridge", "lammps-run"]
+    program = ["--", sys.executable, "-c", "pass"]
+
+    def run(*flags: str) -> "subprocess.CompletedProcess[str]":
+        return subprocess.run(
+            [*command, *flags, *program], cwd=tmp_path, env=environment, text=True, capture_output=True, check=False
+        )
+
+    assert run("--no-launch").returncode == 22
+    report = json.loads((tmp_path / "lammps-run-report.json").read_text(encoding="utf-8"))
+    assert report["process"]["argv"][0] == sys.executable
+    assert run().returncode == 22
+    report = json.loads((tmp_path / "lammps-run-report.json").read_text(encoding="utf-8"))
+    assert report["process"]["argv"][:2] == ["env", "A=b"]

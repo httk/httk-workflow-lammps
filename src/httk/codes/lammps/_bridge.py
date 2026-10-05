@@ -37,6 +37,7 @@ def add_commands(commands: "argparse._SubParsersAction[argparse.ArgumentParser]"
     run.add_argument("--log", default="log.lammps")
     run.add_argument("--output", default="lammps.out")
     run.add_argument("--timeout", type=float)
+    run.add_argument("--launch", action=argparse.BooleanOptionalAction, default=None)
     run.add_argument("argv", nargs=argparse.REMAINDER)
     thermo = commands.add_parser("lammps-thermo")
     thermo.add_argument("--log", default="log.lammps")
@@ -70,6 +71,7 @@ def run_command(arguments: argparse.Namespace) -> int:
             log_file=arguments.log,
             output_file=arguments.output,
             timeout=arguments.timeout,
+            launch=arguments.launch,
         )
         print(Path(arguments.directory, "lammps-run-report.json"))
         return _RUN_EXIT[report.classification]
