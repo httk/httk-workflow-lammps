@@ -36,12 +36,12 @@ def installed_plugin(tmp_path_factory: pytest.TempPathFactory) -> Iterator[None]
 
 def _run_until_idle(workspace: Any, job: Any) -> Path:
     from httk.workflow import TaskManager
+    from httk.workflow.collecting import job_records
 
     with TaskManager(workspace, heartbeat_interval=0.01) as manager:
         manager.run_until_idle(timeout=600.0)
-    marker = workspace.find_marker_by_id(job.job_id)
-    assert marker is not None
-    assert marker.kind == "succeeded", workspace.read_state(marker).get("failure")
+    [record] = job_records(workspace, states=("succeeded", "failed"))
+    assert (record.job_id, record.state) == (job.job_id, "succeeded"), record.failure
     (log,) = workspace.root.rglob("log.lammps")
     return log
 
@@ -59,7 +59,7 @@ def test_lammps_run_melts_lj_and_collects_a_run_only_record(
 
     workspace = Workspace.initialize(tmp_path / "workspace")
     workspace.set_setting("lammps.command", shlex.join(lammps_command() or ()))
-    job = new_job(workspace, "lammps.run", inputs={"script": DATA / "lj.in"})
+    job = new_job(workspace, "lammps.run", inputs={"script": DATA / "lj.in"}, install=True)
     last = parse_lammps_log(_run_until_idle(workspace, job)).thermo[-1].last
     assert last.keys() == LJ_LAST_ROW.keys()
     assert list(last.values()) == pytest.approx(list(LJ_LAST_ROW.values()), abs=1e-6)
@@ -88,7 +88,12 @@ def test_lammps_run_reads_a_structure_written_as_a_data_file(tmp_path: Path, ins
     workspace.set_setting("lammps.command", shlex.join(lammps_command() or ()))
     (tmp_path / "in.lammps").write_text(ARGON_SCRIPT, encoding="utf-8")
     (tmp_path / "POSCAR").write_text(ARGON_POSCAR, encoding="utf-8")
-    job = new_job(workspace, "lammps.run", inputs={"script": tmp_path / "in.lammps", "structure": tmp_path / "POSCAR"})
+    job = new_job(
+        workspace,
+        "lammps.run",
+        inputs={"script": tmp_path / "in.lammps", "structure": tmp_path / "POSCAR"},
+        install=True,
+    )
     log = _run_until_idle(workspace, job)
     assert "  4 atoms" in log.read_text(encoding="utf-8")
     (table,) = parse_lammps_log(log).thermo

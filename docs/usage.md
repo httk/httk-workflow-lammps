@@ -107,7 +107,7 @@ repository, or use it directly with `--workflow-dir`:
 
 ```console
 httk workspace settings set --key lammps.command --value lmp WORKSPACE
-httk job new --workflow lammps.run --input script=in.lammps --input structure=POSCAR
+httk job new --install --workflow lammps.run --input script=in.lammps --input structure=POSCAR
 httk workflow run
 httk collect --into results.sqlite
 ```
