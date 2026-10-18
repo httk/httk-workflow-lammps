@@ -13,7 +13,6 @@ requires = ["httk-workflow>=2.1.1", "httk-workflow-lammps>=0.1.0"]
 entry = "run.py"
 steps = ["run"]
 # The persistent workdir holds log.lammps and whatever the script writes.
-data_mode = "none"
 
 [workflow.inputs.script]
 destination = "in.lammps"
