@@ -8,6 +8,7 @@
 name = "lammps.run"
 description = "one LAMMPS run of an input script"
 requires = ["httk-workflow>=2.1.1", "httk-workflow-lammps>=0.1.0"]
+settings = ["lammps.command"]
 
 [workflow.runner]
 entry = "run.py"
