@@ -29,3 +29,7 @@ import httk.codes.lammps
 assert len(credits.entries()["Calculations with LAMMPS"]) == 1
 """
     subprocess.run([sys.executable, "-c", script], check=True)
+
+
+def test_lammps_declares_its_application_settings() -> None:
+    assert code_support("lammps").settings == ("lammps.command",)
