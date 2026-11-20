@@ -27,3 +27,8 @@ role = "initial_structure"
 entry_type = "structures"
 required = false
 description = "Optional; written as structure.data (read_data structure.data), which needs httk-atomistic."
+
+[workflow.retry_policy]
+# Restart a step whose manager was lost (e.g. drained at the end of an allocation).
+retry_on = ["owner_lost"]
+maximum_attempts_per_activation = 3
