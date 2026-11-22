@@ -103,12 +103,12 @@ one Python runner step that stages the `script` input as `in.lammps`, writes the
 optional `structure` input as `structure.data` (for a script that says
 `read_data structure.data`), runs LAMMPS, and fails with the first diagnostic
 code when the run is not clean. Install it with `httk plugin install` of the
-repository, or use it directly with `--workflow-dir`:
+repository, or use it directly with `httk job new DIR`:
 
 ```console
-httk workspace settings set --key lammps.command --value lmp WORKSPACE
-httk job new --install --workflow lammps.run --input script=in.lammps --input structure=POSCAR
-httk workflow run
+httk workspace set -w WORKSPACE lammps.command=lmp
+httk job new --install lammps.run --input script=in.lammps --input structure=POSCAR
+httk run
 httk collect --into results.sqlite
 ```
 
